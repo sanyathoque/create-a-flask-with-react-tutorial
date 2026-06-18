@@ -1,122 +1,209 @@
 # Flask Backend for a React App
 
-A clear, memorable Flask tutorial for React developers.
+A friendly, memorable Flask tutorial for people who already know React.
 
-You already know React, so this guide focuses only on the Flask side: routes, JSON, CORS, request data, errors, and a clean project shape.
+**Goal:** Build a Flask API that React can call.
 
-## The Big Idea
+No React code here. Only Flask.
 
-React is the frontend.
+---
 
-Flask is the backend.
+## Mental Model
 
-They talk through HTTP:
+Think of your full-stack app like this:
 
 ```text
-React fetch()  --->  Flask route
-React state    <---  Flask JSON response
+React = the screen
+Flask = the waiter
+Database / data = the kitchen
 ```
 
-Think of Flask as a small restaurant kitchen:
+React asks for data.
 
-- A route is the menu item.
-- A request is the customer order.
-- A response is the finished plate.
-- JSON is the shared language between React and Flask.
+Flask receives the request, talks to the data layer, and sends JSON back.
+
+The rule to memorize:
+
+```text
+Route receives.
+Request reads.
+Logic works.
+JSON responds.
+```
+
+---
 
 ## Project Structure
 
-Use this shape for a simple Flask API:
-
 ```text
-backend/
-  app.py
-  requirements.txt
+flask-react-api/
+|
+├── backend/
+|   ├── app/
+|   |   ├── __init__.py
+|   |   ├── routes.py
+|   |   └── data.py
+|   |
+|   ├── run.py
+|   ├── requirements.txt
+|   └── .env
+|
+└── frontend/
+    └── your-react-app-here
 ```
 
-React can live somewhere else, usually:
+We are only writing the `backend/` code.
 
-```text
-frontend/
-  src/
-  package.json
-```
+---
 
-This tutorial only writes the Flask files.
-
-## Install Flask
-
-Inside your backend folder:
+## 1. Create the Backend Folder
 
 ```bash
+mkdir flask-react-api
+cd flask-react-api
+
 mkdir backend
 cd backend
+```
+
+Create a virtual environment:
+
+```bash
 python -m venv .venv
+```
+
+Activate it:
+
+```bash
+# macOS / Linux
 source .venv/bin/activate
-pip install flask flask-cors
+```
+
+```powershell
+# Windows
+.venv\Scripts\activate
+```
+
+Install Flask tools:
+
+```bash
+pip install Flask flask-cors python-dotenv
+```
+
+Save your dependencies:
+
+```bash
 pip freeze > requirements.txt
 ```
 
-On Windows PowerShell, activate the virtual environment with:
+Your `requirements.txt` will look something like this:
 
-```powershell
-.\.venv\Scripts\Activate.ps1
+```text
+Flask
+flask-cors
+python-dotenv
 ```
 
-## Minimal Flask App
+---
 
-Create `backend/app.py`:
+## 2. Create `run.py`
+
+File:
+
+```text
+backend/run.py
+```
+
+Code:
 
 ```python
-from flask import Flask, jsonify
-from flask_cors import CORS
+from app import create_app
 
-app = Flask(__name__)
-CORS(app)
-
-
-@app.get("/")
-def home():
-    return jsonify({
-        "message": "Flask API is running"
-    })
-
+app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=True)
 ```
 
-Run it:
-
-```bash
-python app.py
-```
-
-Open:
-
-```text
-http://127.0.0.1:5000/
-```
-
-You should see JSON:
-
-```json
-{
-  "message": "Flask API is running"
-}
-```
-
-## Explain the Code
+### Explanation
 
 ```python
-from flask import Flask, jsonify
+from app import create_app
 ```
 
-This imports the two Flask tools you use most at the beginning.
+This imports the app factory function from the `app` package.
 
-`Flask` creates the app.
+A factory is just a function that builds your Flask app.
 
-`jsonify` turns Python dictionaries into proper JSON responses.
+```python
+app = create_app()
+```
+
+This creates the actual Flask application.
+
+```python
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+This means:
+
+```text
+Only run the server directly when this file is executed.
+```
+
+`debug=True` is useful while learning because Flask restarts automatically when you change code and shows helpful errors.
+
+Do not use `debug=True` in production.
+
+---
+
+## 3. Create the Flask App Factory
+
+Create this file:
+
+```text
+backend/app/__init__.py
+```
+
+Code:
+
+```python
+from flask import Flask
+from flask_cors import CORS
+
+from .routes import api
+
+
+def create_app():
+    app = Flask(__name__)
+
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": [
+                    "http://localhost:5173",
+                    "http://localhost:3000",
+                ]
+            }
+        },
+    )
+
+    app.register_blueprint(api, url_prefix="/api")
+
+    return app
+```
+
+### Explanation
+
+```python
+from flask import Flask
+```
+
+This imports Flask itself.
+
+`Flask` is the object that represents your backend application.
 
 ```python
 from flask_cors import CORS
@@ -124,784 +211,1136 @@ from flask_cors import CORS
 
 This imports CORS support.
 
-React usually runs on a different port, like `http://localhost:3000` or `http://localhost:5173`.
+CORS matters because your React app and Flask app usually run on different ports.
 
-Flask usually runs on `http://127.0.0.1:5000`.
+Example:
 
-Because those are different origins, the browser blocks requests unless Flask allows them. `CORS(app)` allows React to call your Flask API during development.
+```text
+React: http://localhost:5173
+Flask: http://localhost:5000
+```
+
+The browser treats those as different origins.
+
+So Flask must explicitly allow React to talk to it.
+
+```python
+from .routes import api
+```
+
+This imports our API routes from `routes.py`.
+
+The dot means:
+
+```text
+Import from the current package.
+```
+
+```python
+def create_app():
+```
+
+This function creates and configures the Flask app.
+
+This pattern is called the application factory pattern.
+
+It keeps your project cleaner than putting everything in one giant file.
 
 ```python
 app = Flask(__name__)
 ```
 
-This creates your Flask application.
+This creates the Flask app.
 
-Memorize it as:
-
-```text
-app = my backend server
-```
+`__name__` helps Flask know where your app lives.
 
 ```python
-CORS(app)
+CORS(...)
 ```
 
-This tells Flask:
-
-```text
-Allow browser apps from other origins to call this API.
-```
+This allows React to call your Flask API.
 
 ```python
-@app.get("/")
-def home():
-```
-
-This creates a GET route.
-
-When the browser visits `/`, Flask runs the `home` function.
-
-Memorize the pattern:
-
-```python
-@app.get("/some-url")
-def some_function():
-    return something
-```
-
-```python
-return jsonify({
-    "message": "Flask API is running"
-})
-```
-
-This sends JSON back to React.
-
-React receives this like any other API response.
-
-```python
-if __name__ == "__main__":
-    app.run(debug=True)
-```
-
-This runs the Flask server when you execute:
-
-```bash
-python app.py
-```
-
-`debug=True` is helpful while learning because Flask reloads when you edit code and shows useful error messages.
-
-Do not use `debug=True` in production.
-
-## Add a Route That Returns Data
-
-React often needs lists of data.
-
-Add this to `app.py`:
-
-```python
-from flask import Flask, jsonify
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-
-posts = [
-    {"id": 1, "title": "Learn Flask", "done": False},
-    {"id": 2, "title": "Connect Flask to React", "done": False},
-    {"id": 3, "title": "Build a full-stack app", "done": False},
-]
-
-
-@app.get("/")
-def home():
-    return jsonify({
-        "message": "Flask API is running"
-    })
-
-
-@app.get("/api/posts")
-def get_posts():
-    return jsonify(posts)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
-```
-
-Visit:
-
-```text
-http://127.0.0.1:5000/api/posts
-```
-
-You should get:
-
-```json
-[
-  {
-    "id": 1,
-    "title": "Learn Flask",
-    "done": false
-  },
-  {
-    "id": 2,
-    "title": "Connect Flask to React",
-    "done": false
-  },
-  {
-    "id": 3,
-    "title": "Build a full-stack app",
-    "done": false
-  }
-]
-```
-
-## Explain the Data Route
-
-```python
-posts = [
-    {"id": 1, "title": "Learn Flask", "done": False},
-    {"id": 2, "title": "Connect Flask to React", "done": False},
-    {"id": 3, "title": "Build a full-stack app", "done": False},
-]
-```
-
-This is temporary in-memory data.
-
-It acts like a tiny fake database while learning.
-
-Important Python-to-JSON translation:
-
-```text
-Python False  ->  JSON false
-Python True   ->  JSON true
-Python None   ->  JSON null
-```
-
-```python
-@app.get("/api/posts")
-def get_posts():
-    return jsonify(posts)
+resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:5173",
+            "http://localhost:3000",
+        ]
+    }
+}
 ```
 
 This says:
 
 ```text
-When React asks GET /api/posts,
-send back the posts list as JSON.
+Only allow CORS for routes that start with /api/.
 ```
 
-## Add a Route That Receives Data
+And only allow calls from these React development origins:
 
-To receive JSON from React, use `request`.
+```text
+http://localhost:5173
+http://localhost:3000
+```
 
-Update `app.py`:
+`5173` is common for Vite.
+
+`3000` is common for Create React App or other dev setups.
 
 ```python
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+app.register_blueprint(api, url_prefix="/api")
+```
 
-app = Flask(__name__)
-CORS(app)
+This connects the routes from `routes.py` to the app.
 
+Every route inside the blueprint will start with:
 
-posts = [
-    {"id": 1, "title": "Learn Flask", "done": False},
-    {"id": 2, "title": "Connect Flask to React", "done": False},
-    {"id": 3, "title": "Build a full-stack app", "done": False},
+```text
+/api
+```
+
+So if the route is:
+
+```text
+/notes
+```
+
+The full URL becomes:
+
+```text
+/api/notes
+```
+
+```python
+return app
+```
+
+This gives the finished Flask app back to `run.py`.
+
+---
+
+## 4. Create a Tiny Data Layer
+
+Create this file:
+
+```text
+backend/app/data.py
+```
+
+Code:
+
+```python
+notes = [
+    {
+        "id": 1,
+        "title": "Learn Flask",
+        "body": "Flask sends JSON to React.",
+    },
+    {
+        "id": 2,
+        "title": "Connect React",
+        "body": "React calls Flask API endpoints.",
+    },
 ]
 
 
-@app.get("/")
-def home():
-    return jsonify({
-        "message": "Flask API is running"
-    })
+def get_next_note_id():
+    if not notes:
+        return 1
 
-
-@app.get("/api/posts")
-def get_posts():
-    return jsonify(posts)
-
-
-@app.post("/api/posts")
-def create_post():
-    data = request.get_json()
-
-    title = data.get("title")
-
-    if not title:
-        return jsonify({
-            "error": "Title is required"
-        }), 400
-
-    new_post = {
-        "id": len(posts) + 1,
-        "title": title,
-        "done": False
-    }
-
-    posts.append(new_post)
-
-    return jsonify(new_post), 201
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    last_note = notes[-1]
+    return last_note["id"] + 1
 ```
 
-## Explain the POST Route
+### Explanation
+
+This file pretends to be a database.
+
+For now, we are storing notes in a Python list.
 
 ```python
-from flask import Flask, jsonify, request
+notes = [...]
 ```
 
-`request` represents the incoming HTTP request.
+Each note is a dictionary.
+
+A dictionary turns into JSON very naturally.
+
+```python
+def get_next_note_id():
+```
+
+This function gives every new note a unique ID.
+
+```python
+if not notes:
+    return 1
+```
+
+If the list is empty, the first note should have ID `1`.
+
+```python
+last_note = notes[-1]
+return last_note["id"] + 1
+```
+
+This looks at the last note and adds `1` to its ID.
+
+This is not real database logic, but it is perfect for learning Flask API structure.
+
+---
+
+## 5. Create the API Routes
+
+Create this file:
+
+```text
+backend/app/routes.py
+```
+
+Code:
+
+```python
+from flask import Blueprint, jsonify, request
+
+from .data import notes, get_next_note_id
+
+
+api = Blueprint("api", __name__)
+
+
+@api.get("/health")
+def health_check():
+    return jsonify(
+        {
+            "status": "ok",
+            "message": "Flask API is running.",
+        }
+    ), 200
+
+
+@api.get("/notes")
+def get_notes():
+    return jsonify(
+        {
+            "notes": notes,
+            "count": len(notes),
+        }
+    ), 200
+
+
+@api.get("/notes/<int:note_id>")
+def get_note(note_id):
+    for note in notes:
+        if note["id"] == note_id:
+            return jsonify(note), 200
+
+    return jsonify(
+        {
+            "error": "Note not found."
+        }
+    ), 404
+
+
+@api.post("/notes")
+def create_note():
+    data = request.get_json()
+
+    if not data:
+        return jsonify(
+            {
+                "error": "Request body must be JSON."
+            }
+        ), 400
+
+    title = data.get("title")
+    body = data.get("body")
+
+    if not title or not body:
+        return jsonify(
+            {
+                "error": "Both title and body are required."
+            }
+        ), 400
+
+    new_note = {
+        "id": get_next_note_id(),
+        "title": title,
+        "body": body,
+    }
+
+    notes.append(new_note)
+
+    return jsonify(new_note), 201
+
+
+@api.put("/notes/<int:note_id>")
+def update_note(note_id):
+    data = request.get_json()
+
+    if not data:
+        return jsonify(
+            {
+                "error": "Request body must be JSON."
+            }
+        ), 400
+
+    for note in notes:
+        if note["id"] == note_id:
+            note["title"] = data.get("title", note["title"])
+            note["body"] = data.get("body", note["body"])
+
+            return jsonify(note), 200
+
+    return jsonify(
+        {
+            "error": "Note not found."
+        }
+    ), 404
+
+
+@api.delete("/notes/<int:note_id>")
+def delete_note(note_id):
+    for note in notes:
+        if note["id"] == note_id:
+            notes.remove(note)
+
+            return jsonify(
+                {
+                    "message": "Note deleted successfully."
+                }
+            ), 200
+
+    return jsonify(
+        {
+            "error": "Note not found."
+        }
+    ), 404
+```
+
+---
+
+## 6. Understanding `routes.py`
+
+### Importing Flask Tools
+
+```python
+from flask import Blueprint, jsonify, request
+```
+
+You are importing three important tools.
+
+### `Blueprint`
+
+A `Blueprint` lets you group routes together.
+
+Instead of putting every route directly on the app, you put them inside a smaller route group.
 
 Memorize it like this:
 
 ```text
-request = what the client sent
+Flask app = whole building
+Blueprint = one room inside the building
 ```
 
-```python
-@app.post("/api/posts")
-def create_post():
-```
+### `jsonify`
 
-This creates a POST route.
+`jsonify` turns Python dictionaries and lists into JSON responses.
 
-Use POST when React is creating new data.
+React likes JSON.
 
-```python
-data = request.get_json()
-```
+So most Flask + React APIs return JSON.
 
-This reads the JSON body sent by React.
+### `request`
 
-If React sends:
+`request` lets Flask read incoming data.
 
-```json
-{
-  "title": "Practice Flask routes"
-}
-```
-
-Then Flask sees:
-
-```python
-data = {
-    "title": "Practice Flask routes"
-}
-```
-
-```python
-title = data.get("title")
-```
-
-This safely gets the `title` field.
-
-Using `.get()` is friendlier than `data["title"]` because it does not crash if the key is missing.
-
-```python
-if not title:
-    return jsonify({
-        "error": "Title is required"
-    }), 400
-```
-
-This validates the request.
-
-If the title is missing, Flask returns:
-
-- A JSON error message.
-- HTTP status code `400`, meaning bad request.
-
-Memorize:
-
-```text
-Bad client input -> 400
-Created something -> 201
-Everything okay -> 200
-```
-
-```python
-new_post = {
-    "id": len(posts) + 1,
-    "title": title,
-    "done": False
-}
-```
-
-This creates a new Python dictionary.
-
-Later, a real app would save this to a database.
-
-For learning, appending to the list is enough.
-
-```python
-posts.append(new_post)
-```
-
-This stores the new post in memory.
-
-Important: this data disappears when the Flask server restarts.
-
-```python
-return jsonify(new_post), 201
-```
-
-This sends the newly created post back to React.
-
-The `201` status code means:
-
-```text
-Created successfully.
-```
-
-## Test the POST Route Without React
-
-You can test the backend first with `curl`.
-
-```bash
-curl -X POST http://127.0.0.1:5000/api/posts \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Practice Flask"}'
-```
-
-On Windows PowerShell:
-
-```powershell
-Invoke-RestMethod `
-  -Uri "http://127.0.0.1:5000/api/posts" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body '{"title": "Practice Flask"}'
-```
-
-Expected response:
-
-```json
-{
-  "id": 4,
-  "title": "Practice Flask",
-  "done": false
-}
-```
-
-## Add Dynamic Routes
-
-Sometimes React needs one item by ID.
-
-Add this route:
-
-```python
-@app.get("/api/posts/<int:post_id>")
-def get_post(post_id):
-    for post in posts:
-        if post["id"] == post_id:
-            return jsonify(post)
-
-    return jsonify({
-        "error": "Post not found"
-    }), 404
-```
-
-Now visit:
-
-```text
-http://127.0.0.1:5000/api/posts/1
-```
-
-## Explain Dynamic Routes
-
-```python
-@app.get("/api/posts/<int:post_id>")
-```
-
-This route has a variable part.
-
-`<int:post_id>` means:
-
-```text
-Read this part of the URL as an integer.
-```
-
-So this URL:
-
-```text
-/api/posts/1
-```
-
-becomes:
-
-```python
-post_id = 1
-```
-
-```python
-def get_post(post_id):
-```
-
-Flask passes the URL value into your function.
-
-```python
-for post in posts:
-    if post["id"] == post_id:
-        return jsonify(post)
-```
-
-This searches the list and returns the matching post.
-
-```python
-return jsonify({
-    "error": "Post not found"
-}), 404
-```
-
-If there is no match, return `404`.
-
-Memorize:
-
-```text
-404 = the thing does not exist
-```
-
-## Add an Update Route
-
-Use `PATCH` when React updates part of an existing item.
-
-Add this route:
-
-```python
-@app.patch("/api/posts/<int:post_id>")
-def update_post(post_id):
-    data = request.get_json()
-
-    for post in posts:
-        if post["id"] == post_id:
-            post["title"] = data.get("title", post["title"])
-            post["done"] = data.get("done", post["done"])
-            return jsonify(post)
-
-    return jsonify({
-        "error": "Post not found"
-    }), 404
-```
-
-## Explain the Update Route
-
-```python
-@app.patch("/api/posts/<int:post_id>")
-```
-
-`PATCH` means:
-
-```text
-Update part of an existing resource.
-```
-
-```python
-post["title"] = data.get("title", post["title"])
-```
-
-This means:
-
-```text
-Use the new title if React sent one.
-Otherwise keep the old title.
-```
-
-Same idea here:
-
-```python
-post["done"] = data.get("done", post["done"])
-```
-
-This lets React update only one field at a time.
-
-## Add a Delete Route
-
-Use `DELETE` when React removes something.
-
-Add this route:
-
-```python
-@app.delete("/api/posts/<int:post_id>")
-def delete_post(post_id):
-    for post in posts:
-        if post["id"] == post_id:
-            posts.remove(post)
-            return jsonify({
-                "message": "Post deleted"
-            })
-
-    return jsonify({
-        "error": "Post not found"
-    }), 404
-```
-
-## Explain the Delete Route
-
-```python
-@app.delete("/api/posts/<int:post_id>")
-```
-
-This creates a DELETE route.
-
-```python
-posts.remove(post)
-```
-
-This removes the matching post from the list.
-
-```python
-return jsonify({
-    "message": "Post deleted"
-})
-```
-
-This confirms the delete worked.
-
-Some APIs return no JSON and use status code `204`.
-
-For learning, a message is easier to see.
-
-## Complete Flask File
-
-Here is the full `backend/app.py`:
-
-```python
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-
-posts = [
-    {"id": 1, "title": "Learn Flask", "done": False},
-    {"id": 2, "title": "Connect Flask to React", "done": False},
-    {"id": 3, "title": "Build a full-stack app", "done": False},
-]
-
-
-@app.get("/")
-def home():
-    return jsonify({
-        "message": "Flask API is running"
-    })
-
-
-@app.get("/api/posts")
-def get_posts():
-    return jsonify(posts)
-
-
-@app.post("/api/posts")
-def create_post():
-    data = request.get_json()
-
-    title = data.get("title")
-
-    if not title:
-        return jsonify({
-            "error": "Title is required"
-        }), 400
-
-    new_post = {
-        "id": len(posts) + 1,
-        "title": title,
-        "done": False
-    }
-
-    posts.append(new_post)
-
-    return jsonify(new_post), 201
-
-
-@app.get("/api/posts/<int:post_id>")
-def get_post(post_id):
-    for post in posts:
-        if post["id"] == post_id:
-            return jsonify(post)
-
-    return jsonify({
-        "error": "Post not found"
-    }), 404
-
-
-@app.patch("/api/posts/<int:post_id>")
-def update_post(post_id):
-    data = request.get_json()
-
-    for post in posts:
-        if post["id"] == post_id:
-            post["title"] = data.get("title", post["title"])
-            post["done"] = data.get("done", post["done"])
-            return jsonify(post)
-
-    return jsonify({
-        "error": "Post not found"
-    }), 404
-
-
-@app.delete("/api/posts/<int:post_id>")
-def delete_post(post_id):
-    for post in posts:
-        if post["id"] == post_id:
-            posts.remove(post)
-            return jsonify({
-                "message": "Post deleted"
-            })
-
-    return jsonify({
-        "error": "Post not found"
-    }), 404
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
-```
-
-## API Cheat Sheet
-
-| Action | HTTP Method | Flask Route | Meaning |
-| --- | --- | --- | --- |
-| Read all posts | `GET` | `/api/posts` | Give React the list |
-| Read one post | `GET` | `/api/posts/1` | Give React one item |
-| Create post | `POST` | `/api/posts` | Add a new item |
-| Update post | `PATCH` | `/api/posts/1` | Change part of an item |
-| Delete post | `DELETE` | `/api/posts/1` | Remove an item |
-
-## Status Code Cheat Sheet
-
-| Code | Meaning | Use It When |
-| --- | --- | --- |
-| `200` | OK | A normal request worked |
-| `201` | Created | A POST request created something |
-| `400` | Bad Request | React sent invalid or missing data |
-| `404` | Not Found | The requested item does not exist |
-| `500` | Server Error | Flask crashed or something unexpected happened |
-
-## Flask Patterns to Memorize
-
-### Create the app
-
-```python
-app = Flask(__name__)
-```
-
-### Send JSON
-
-```python
-return jsonify({"message": "Hello"})
-```
-
-### Read JSON from React
-
-```python
-data = request.get_json()
-```
-
-### Make a GET route
-
-```python
-@app.get("/api/items")
-def get_items():
-    return jsonify(items)
-```
-
-### Make a POST route
-
-```python
-@app.post("/api/items")
-def create_item():
-    data = request.get_json()
-    return jsonify(data), 201
-```
-
-### Make a route with an ID
-
-```python
-@app.get("/api/items/<int:item_id>")
-def get_item(item_id):
-    return jsonify({"id": item_id})
-```
-
-## Common Mistakes
-
-### Forgetting CORS
-
-If React cannot call Flask and the browser console mentions CORS, install and enable `flask-cors`:
-
-```python
-from flask_cors import CORS
-
-CORS(app)
-```
-
-### Forgetting `jsonify`
-
-Prefer this:
-
-```python
-return jsonify({"message": "Hello"})
-```
-
-Instead of this:
-
-```python
-return {"message": "Hello"}
-```
-
-Flask can return dictionaries directly in many cases, but `jsonify` makes your intention obvious while learning.
-
-### Forgetting to Import `request`
-
-If you use:
+For example, when React sends a POST request with JSON, Flask reads it using:
 
 ```python
 request.get_json()
 ```
 
-Then you must import it:
+---
+
+## Creating the Blueprint
 
 ```python
-from flask import request
+api = Blueprint("api", __name__)
 ```
 
-### Expecting List Data to Persist
+This creates a route group named `api`.
 
-This tutorial stores data in a Python list.
+Later, in `__init__.py`, we attach this blueprint to the main app:
 
-That is fine for learning routes.
+```python
+app.register_blueprint(api, url_prefix="/api")
+```
 
-It is not a database.
+So this route:
 
-When the server restarts, the list resets.
+```python
+@api.get("/notes")
+```
 
-## The Mental Model
+Becomes this full URL:
+
+```text
+/api/notes
+```
+
+---
+
+## 7. The Health Check Route
+
+```python
+@api.get("/health")
+def health_check():
+    return jsonify(
+        {
+            "status": "ok",
+            "message": "Flask API is running.",
+        }
+    ), 200
+```
+
+This route is for checking if the backend is alive.
+
+Visit:
+
+```text
+http://localhost:5000/api/health
+```
+
+You should see:
+
+```json
+{
+  "status": "ok",
+  "message": "Flask API is running."
+}
+```
+
+The `200` means success.
+
+---
+
+## 8. Get All Notes
+
+```python
+@api.get("/notes")
+def get_notes():
+    return jsonify(
+        {
+            "notes": notes,
+            "count": len(notes),
+        }
+    ), 200
+```
+
+This route returns every note.
+
+React would call:
+
+```text
+GET /api/notes
+```
+
+The response looks like:
+
+```json
+{
+  "notes": [
+    {
+      "id": 1,
+      "title": "Learn Flask",
+      "body": "Flask sends JSON to React."
+    }
+  ],
+  "count": 1
+}
+```
+
+Important pattern:
+
+```text
+Function gets data.
+jsonify sends data.
+Status code explains result.
+```
+
+---
+
+## 9. Get One Note
+
+```python
+@api.get("/notes/<int:note_id>")
+def get_note(note_id):
+```
+
+This route has a URL parameter.
+
+Example:
+
+```text
+/api/notes/1
+```
+
+Flask takes the `1` from the URL and passes it into the function as `note_id`.
+
+```python
+<int:note_id>
+```
+
+This means:
+
+```text
+Only match this route if note_id is an integer.
+```
+
+Then we search for the note:
+
+```python
+for note in notes:
+    if note["id"] == note_id:
+        return jsonify(note), 200
+```
+
+If found, return it.
+
+If not found:
+
+```python
+return jsonify(
+    {
+        "error": "Note not found."
+    }
+), 404
+```
+
+`404` means:
+
+```text
+The thing you asked for does not exist.
+```
+
+---
+
+## 10. Create a Note
+
+```python
+@api.post("/notes")
+def create_note():
+```
+
+This route creates a new note.
+
+React would call:
+
+```text
+POST /api/notes
+```
+
+With JSON like:
+
+```json
+{
+  "title": "New note",
+  "body": "This came from React."
+}
+```
+
+Flask reads the JSON:
+
+```python
+data = request.get_json()
+```
+
+Then we validate it:
+
+```python
+if not data:
+    return jsonify(
+        {
+            "error": "Request body must be JSON."
+        }
+    ), 400
+```
+
+`400` means:
+
+```text
+The client sent a bad request.
+```
+
+Then we pull out the fields:
+
+```python
+title = data.get("title")
+body = data.get("body")
+```
+
+`.get()` is safer than direct access.
+
+This:
+
+```python
+data.get("title")
+```
+
+will return `None` if `title` does not exist.
+
+This:
+
+```python
+data["title"]
+```
+
+would crash if `title` does not exist.
+
+Then we validate again:
+
+```python
+if not title or not body:
+```
+
+Both fields are required.
+
+Then we create the note:
+
+```python
+new_note = {
+    "id": get_next_note_id(),
+    "title": title,
+    "body": body,
+}
+```
+
+Then store it:
+
+```python
+notes.append(new_note)
+```
+
+Then respond:
+
+```python
+return jsonify(new_note), 201
+```
+
+`201` means:
+
+```text
+Created successfully.
+```
+
+---
+
+## 11. Update a Note
+
+```python
+@api.put("/notes/<int:note_id>")
+def update_note(note_id):
+```
+
+This route updates an existing note.
+
+React would call:
+
+```text
+PUT /api/notes/1
+```
+
+With JSON like:
+
+```json
+{
+  "title": "Updated title"
+}
+```
+
+The code:
+
+```python
+note["title"] = data.get("title", note["title"])
+note["body"] = data.get("body", note["body"])
+```
+
+This means:
+
+```text
+Use the new value if React sent one. Otherwise, keep the old value.
+```
+
+Example:
+
+```python
+data.get("title", note["title"])
+```
+
+If `title` exists in the request, use it.
+
+If not, keep the current title.
+
+This makes partial updates easier.
+
+---
+
+## 12. Delete a Note
+
+```python
+@api.delete("/notes/<int:note_id>")
+def delete_note(note_id):
+```
+
+This route deletes a note.
+
+React would call:
+
+```text
+DELETE /api/notes/1
+```
+
+We search for the note:
+
+```python
+for note in notes:
+    if note["id"] == note_id:
+```
+
+Then remove it:
+
+```python
+notes.remove(note)
+```
+
+Then return a success message:
+
+```python
+return jsonify(
+    {
+        "message": "Note deleted successfully."
+    }
+), 200
+```
+
+---
+
+## 13. Run the Flask Server
+
+From inside the `backend/` folder:
+
+```bash
+python run.py
+```
+
+You should see something like:
+
+```text
+Running on http://127.0.0.1:5000
+```
+
+Test this in your browser:
+
+```text
+http://localhost:5000/api/health
+```
+
+---
+
+## 14. API Endpoint Summary
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Check if Flask is running |
+| GET | `/api/notes` | Get all notes |
+| GET | `/api/notes/<id>` | Get one note |
+| POST | `/api/notes` | Create a note |
+| PUT | `/api/notes/<id>` | Update a note |
+| DELETE | `/api/notes/<id>` | Delete a note |
+
+---
+
+## 15. How React Connects Conceptually
+
+No React code, just the contract.
+
+Your React app should call Flask at:
+
+```text
+http://localhost:5000/api/...
+```
+
+Examples:
+
+```text
+GET    http://localhost:5000/api/notes
+POST   http://localhost:5000/api/notes
+PUT    http://localhost:5000/api/notes/1
+DELETE http://localhost:5000/api/notes/1
+```
+
+The request body for creating a note should be JSON:
+
+```json
+{
+  "title": "My title",
+  "body": "My note body"
+}
+```
+
+The request body for updating a note can be JSON:
+
+```json
+{
+  "title": "Updated title",
+  "body": "Updated body"
+}
+```
+
+Your React app should send:
+
+```text
+Content-Type: application/json
+```
+
+Flask receives that JSON with:
+
+```python
+request.get_json()
+```
+
+Flask sends JSON back with:
+
+```python
+jsonify(...)
+```
+
+That is the whole connection.
+
+---
+
+## 16. Common Mistakes
+
+### Mistake 1: Forgetting CORS
+
+If React says something like:
+
+```text
+blocked by CORS policy
+```
+
+Your Flask backend probably has not allowed your React origin.
+
+Check this part:
+
+```python
+CORS(
+    app,
+    resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5173",
+                "http://localhost:3000",
+            ]
+        }
+    },
+)
+```
+
+### Mistake 2: Forgetting `/api`
+
+This route:
+
+```python
+@api.get("/notes")
+```
+
+is not:
+
+```text
+/notes
+```
+
+Because we registered the blueprint with:
+
+```python
+url_prefix="/api"
+```
+
+So the actual route is:
+
+```text
+/api/notes
+```
+
+### Mistake 3: Sending Non-JSON Data
+
+This expects JSON:
+
+```python
+data = request.get_json()
+```
+
+So the client must send:
+
+```text
+Content-Type: application/json
+```
+
+And the body must be valid JSON.
+
+### Mistake 4: Expecting Data to Save Forever
+
+Right now, notes are stored in a Python list.
+
+When the Flask server restarts, the notes reset.
+
+That is normal.
+
+To save data permanently, use a database later.
+
+Good next options:
+
+- SQLite
+- PostgreSQL
+- MongoDB
+
+For learning Flask, the list is enough.
+
+---
+
+## 17. The Flask Pattern to Memorize
+
+Almost every Flask API route follows this shape:
+
+```python
+@api.method("/some-route")
+def function_name():
+    data = request.get_json()
+
+    # validate data
+
+    # do the work
+
+    return jsonify(result), status_code
+```
 
 Memorize this:
 
 ```text
-Route receives request.
-Function runs.
-Function returns response.
-React uses the JSON.
+Route receives.
+Request reads.
+Validate early.
+Logic works.
+JSON responds.
 ```
 
-And this:
+---
+
+## 18. Final Backend Code Recap
+
+### `backend/run.py`
+
+```python
+from app import create_app
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+### `backend/app/__init__.py`
+
+```python
+from flask import Flask
+from flask_cors import CORS
+
+from .routes import api
+
+
+def create_app():
+    app = Flask(__name__)
+
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": [
+                    "http://localhost:5173",
+                    "http://localhost:3000",
+                ]
+            }
+        },
+    )
+
+    app.register_blueprint(api, url_prefix="/api")
+
+    return app
+```
+
+### `backend/app/data.py`
+
+```python
+notes = [
+    {
+        "id": 1,
+        "title": "Learn Flask",
+        "body": "Flask sends JSON to React.",
+    },
+    {
+        "id": 2,
+        "title": "Connect React",
+        "body": "React calls Flask API endpoints.",
+    },
+]
+
+
+def get_next_note_id():
+    if not notes:
+        return 1
+
+    last_note = notes[-1]
+    return last_note["id"] + 1
+```
+
+### `backend/app/routes.py`
+
+```python
+from flask import Blueprint, jsonify, request
+
+from .data import notes, get_next_note_id
+
+
+api = Blueprint("api", __name__)
+
+
+@api.get("/health")
+def health_check():
+    return jsonify(
+        {
+            "status": "ok",
+            "message": "Flask API is running.",
+        }
+    ), 200
+
+
+@api.get("/notes")
+def get_notes():
+    return jsonify(
+        {
+            "notes": notes,
+            "count": len(notes),
+        }
+    ), 200
+
+
+@api.get("/notes/<int:note_id>")
+def get_note(note_id):
+    for note in notes:
+        if note["id"] == note_id:
+            return jsonify(note), 200
+
+    return jsonify(
+        {
+            "error": "Note not found."
+        }
+    ), 404
+
+
+@api.post("/notes")
+def create_note():
+    data = request.get_json()
+
+    if not data:
+        return jsonify(
+            {
+                "error": "Request body must be JSON."
+            }
+        ), 400
+
+    title = data.get("title")
+    body = data.get("body")
+
+    if not title or not body:
+        return jsonify(
+            {
+                "error": "Both title and body are required."
+            }
+        ), 400
+
+    new_note = {
+        "id": get_next_note_id(),
+        "title": title,
+        "body": body,
+    }
+
+    notes.append(new_note)
+
+    return jsonify(new_note), 201
+
+
+@api.put("/notes/<int:note_id>")
+def update_note(note_id):
+    data = request.get_json()
+
+    if not data:
+        return jsonify(
+            {
+                "error": "Request body must be JSON."
+            }
+        ), 400
+
+    for note in notes:
+        if note["id"] == note_id:
+            note["title"] = data.get("title", note["title"])
+            note["body"] = data.get("body", note["body"])
+
+            return jsonify(note), 200
+
+    return jsonify(
+        {
+            "error": "Note not found."
+        }
+    ), 404
+
+
+@api.delete("/notes/<int:note_id>")
+def delete_note(note_id):
+    for note in notes:
+        if note["id"] == note_id:
+            notes.remove(note)
+
+            return jsonify(
+                {
+                    "message": "Note deleted successfully."
+                }
+            ), 200
+
+    return jsonify(
+        {
+            "error": "Note not found."
+        }
+    ), 404
+```
+
+---
+
+## 19. What You Should Remember
+
+The most important Flask ideas for React developers are:
+
+- Flask serves API routes.
+- React calls those routes.
+- Flask reads JSON with `request.get_json()`.
+- Flask returns JSON with `jsonify()`.
+- CORS allows React and Flask to talk during development.
+- Blueprints keep routes organized.
+
+The key Flask + React sentence:
 
 ```text
-GET    = read
-POST   = create
-PATCH  = update
-DELETE = remove
+React owns the UI. Flask owns the API.
 ```
-
-That is the core of Flask APIs for React.
